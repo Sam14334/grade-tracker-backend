@@ -1,0 +1,11 @@
+# The backend is a JSON API; private code must never be served directly.
+Options -Indexes
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+RewriteEngine On
+
+# Block source, SQL, and route definition folders.
+RewriteRule ^(?:src|sql|routes)/ - [F,L]
