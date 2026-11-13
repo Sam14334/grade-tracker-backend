@@ -36,3 +36,22 @@ function requiredConfig(string $key): string {
 function appAllowedOrigin(): string {
     return trim((string)configValue('APP_ALLOWED_ORIGIN'));
 }
+
+/**
+ * Comma-separated APP_ALLOWED_ORIGIN entries, normalised for exact matching.
+ * Example: "https://www.gradeseer.site, https://gradeseer.site"
+ *
+ * @return list<string>
+ */
+function appAllowedOrigins(): array {
+    $raw = appAllowedOrigin();
+    if ($raw === '') return [];
+
+    $origins = [];
+    foreach (explode(',', $raw) as $origin) {
+        $origin = rtrim(trim($origin), '/');
+        if ($origin !== '') $origins[] = $origin;
+    }
+
+    return array_values(array_unique($origins));
+}

@@ -10,15 +10,17 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/http/exceptions.php';
 require_once __DIR__ . '/http/response.php';
 
-$allowedOrigin = appAllowedOrigin();
+$allowedOrigins = appAllowedOrigins();
 $requestOrigin = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
-if ($allowedOrigin !== '' && $requestOrigin === $allowedOrigin) {
-    header('Access-Control-Allow-Origin: ' . $allowedOrigin);
+// The API answers with a different ACAO per origin, so caches must key on Origin.
+header('Vary: Origin');
+if ($requestOrigin !== '' && in_array($requestOrigin, $allowedOrigins, true)) {
+    header('Access-Control-Allow-Origin: ' . $requestOrigin);
     header('Access-Control-Allow-Credentials: true');
     header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token, X-HTTP-Method-Override');
     header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    header('Vary: Origin');
 }
+$crossSite = $allowedOrigins !== [];
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     http_response_code(204);
@@ -26,7 +28,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
 }
 
 $isHttps = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
-$crossSite = $allowedOrigin !== '';
+$crossSite = $allowedOrigins !== [];
 session_set_cookie_params([
     'lifetime' => 0,
     'path' => '/',
