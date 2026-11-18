@@ -2,9 +2,11 @@
 
 function studentDashboardController(): void {
     $user = requireStudent();
+    $courses = studentDashboard($user['userId']);
     jsonSuccess([
         'user' => $user,
-        'courses' => studentDashboard($user['userId']),
+        'courses' => $courses,
+        'analytics' => studentDashboardAnalytics($courses),
         'gradeScale' => array_column(pupGradeScale(), 1),
         'targetGrades' => allowedTargetGrades(),
         'csrfToken' => csrfToken(),

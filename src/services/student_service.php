@@ -30,6 +30,32 @@ function studentDashboard(int $userId): array {
     return $courses;
 }
 
+function studentDashboardAnalytics(array $courses): array {
+    $finalizedSubjects = 0;
+    $atOrWithinTarget = 0;
+    $gradedUnits = 0.0;
+    $weightedGrades = 0.0;
+
+    foreach ($courses as $course) {
+        if (!is_numeric($course['grade'] ?? null)) continue;
+
+        $grade = (float)$course['grade'];
+        $units = (float)$course['units'];
+        $finalizedSubjects++;
+        $gradedUnits += $units;
+        $weightedGrades += $grade * $units;
+
+        if ($grade <= (float)$course['target']) $atOrWithinTarget++;
+    }
+
+    return [
+        'currentGwa' => $gradedUnits > 0 ? round($weightedGrades / $gradedUnits, 2) : null,
+        'finalizedSubjects' => $finalizedSubjects,
+        'totalSubjects' => count($courses),
+        'atOrWithinTarget' => $atOrWithinTarget,
+    ];
+}
+
 function courseDetail(int $userId, int $enrollmentId): array {
     $conn = db();
     $course = enrollmentFindForUser($conn, $enrollmentId, $userId);
@@ -211,5 +237,10 @@ function saveTargetGrade(int $userId, int $enrollmentId, array $input): array {
         throw new ApiException('Could not save the target grade. Please try again.', 404);
     }
 
-    return ['targetGrade' => $target, 'redirect' => 'student_dashboard.html?target=saved#grades'];
+    $courses = studentDashboard($userId);
+    return [
+        'targetGrade' => $target,
+        'analytics' => studentDashboardAnalytics($courses),
+        'redirect' => 'student_dashboard.html?target=saved#grades',
+    ];
 }
