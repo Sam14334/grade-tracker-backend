@@ -8,6 +8,7 @@ function studentDashboardController(): void {
         'courses' => $courses,
         'analytics' => studentDashboardAnalytics($courses),
         'gradeScale' => array_column(pupGradeScale(), 1),
+        'gradeScalePairs' => pupGradeScale(),
         'targetGrades' => allowedTargetGrades(),
         'csrfToken' => csrfToken(),
     ]);

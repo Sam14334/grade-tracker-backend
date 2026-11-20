@@ -87,6 +87,63 @@ function calculateCourseGrade(array $components, array $scores): array {
     ];
 }
 
+/**
+ * Aggregates saved score records into per-component results.
+ *
+ * Each grading period contributes half of the course weight, so a component's
+ * course weight is its template weight divided by two.
+ *
+ * @return array{components: list<array>, gradedWeight: float, earnedPoints: float, percentage: ?float}
+ */
+function summarizeComponentPerformance(array $components, array $scores): array {
+    $totals = [];
+    foreach ($scores as $score) {
+        $key = (string)$score['component_id'];
+        if (!isset($totals[$key])) {
+            $totals[$key] = ['score' => 0.0, 'max' => 0, 'assessments' => []];
+        }
+        $totals[$key]['score'] += (float)$score['raw_score'];
+        $totals[$key]['max'] += (int)$score['total_items'];
+        $totals[$key]['assessments'][] = [
+            'title' => (string)$score['assessment_title'],
+            'score' => (float)$score['raw_score'],
+            'max' => (int)$score['total_items'],
+        ];
+    }
+
+    $results = [];
+    $gradedWeight = 0.0;
+    $earnedPoints = 0.0;
+    foreach ($components as $component) {
+        $total = $totals[(string)$component['id']] ?? ['score' => 0.0, 'max' => 0, 'assessments' => []];
+        $courseWeight = (int)$component['weight'] / 2;
+        if ($total['max'] > 0) {
+            // Recorded zeros count as graded work.
+            $gradedWeight += $courseWeight;
+            $earnedPoints += ($total['score'] / $total['max']) * $courseWeight;
+        }
+
+        $results[] = [
+            'id' => $component['id'],
+            'period' => $component['period'],
+            'name' => $component['name'],
+            'weight' => (int)$component['weight'],
+            'is_exam' => (bool)$component['is_exam'],
+            'percentage' => $total['max'] > 0 ? $total['score'] / $total['max'] * 100 : null,
+            'score' => $total['score'],
+            'max' => $total['max'],
+            'assessments' => $total['assessments'],
+        ];
+    }
+
+    return [
+        'components' => $results,
+        'gradedWeight' => $gradedWeight,
+        'earnedPoints' => $earnedPoints,
+        'percentage' => $gradedWeight > 0 ? round($earnedPoints / $gradedWeight * 100, 10) : null,
+    ];
+}
+
 function allowedTargetGrades(): array {
     return array_values(array_filter(array_column(pupGradeScale(), 1), fn($grade) => $grade <= 3.00));
 }
