@@ -38,43 +38,11 @@ function professorStandings(int $professorId): array {
         $scores = loadEnrollmentScores($conn, (int)$enrollment['enrollment_id'], $templateId);
         $result = calculateCourseGrade($components, $scores);
 
-        $totals = [];
-        foreach ($scores as $score) {
-            $key = $score['component_id'];
-            if (!isset($totals[$key])) $totals[$key] = ['score' => 0.0, 'max' => 0, 'assessments' => []];
-            $totals[$key]['score'] += (float)$score['raw_score'];
-            $totals[$key]['max'] += (int)$score['total_items'];
-            $totals[$key]['assessments'][] = [
-                'title' => $score['assessment_title'],
-                'score' => (float)$score['raw_score'],
-                'max' => (int)$score['total_items'],
-            ];
-        }
-
-        $componentResults = [];
-        $gradedWeight = 0;
-        $earnedPoints = 0.0;
-        foreach ($components as $component) {
-            $total = $totals[$component['id']] ?? ['score' => 0.0, 'max' => 0, 'assessments' => []];
-            if ($total['max'] > 0) {
-                // Each period contributes half of the course weight. Recorded zeros count.
-                $gradedWeight += $component['weight'] / 2;
-                $earnedPoints += ($total['score'] / $total['max']) * ($component['weight'] / 2);
-            }
-            $componentResults[] = [
-                'id' => $component['id'],
-                'period' => $component['period'],
-                'name' => $component['name'],
-                'weight' => $component['weight'],
-                'percentage' => $total['max'] > 0 ? $total['score'] / $total['max'] * 100 : null,
-                'score' => $total['score'],
-                'max' => $total['max'],
-                'assessments' => $total['assessments'],
-            ];
-        }
-
+        $performance = summarizeComponentPerformance($components, $scores);
+        $componentResults = $performance['components'];
+        $gradedWeight = $performance['gradedWeight'];
         $currentPercentage = $gradedWeight > 0 && $result['status'] !== 'Invalid weights'
-            ? round($earnedPoints / $gradedWeight * 100, 10) : null;
+            ? $performance['percentage'] : null;
 
         $standingCourses[$templateId]['students'][] = [
             'enrollmentId' => (int)$enrollment['enrollment_id'],
@@ -90,5 +58,10 @@ function professorStandings(int $professorId): array {
         ];
     }
 
-    return ['courses' => array_values($standingCourses), 'updatedAt' => date('c')];
+    return [
+        'courses' => array_values($standingCourses),
+        'updatedAt' => date('c'),
+        'gradeScale' => array_column(pupGradeScale(), 1),
+        'gradeScalePairs' => pupGradeScale(),
+    ];
 }
