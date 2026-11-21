@@ -9,6 +9,7 @@ function studentDashboard(int $userId): array {
         $components = loadTemplateComponents($conn, $templateId);
         $scores = loadEnrollmentScores($conn, (int)$row['enrollment_id'], $templateId);
         $result = calculateCourseGrade($components, $scores);
+        $performance = summarizeComponentPerformance($components, $scores);
 
         $courses[] = [
             'id' => $templateId,
@@ -19,6 +20,8 @@ function studentDashboard(int $userId): array {
             'units' => (float)$row['course_unit'],
             'classCode' => $row['class_code'],
             'components' => $components,
+            'componentResults' => $performance['components'],
+            'gradedWeight' => $performance['gradedWeight'],
             'grade' => $result['grade'],
             'percentage' => $result['percentage'],
             'gradeStatus' => $result['status'],
