@@ -1,8 +1,6 @@
 <?php
 
 declare(strict_types=1);
-
-// send email with resend
 function sendResendEmail(string $to, string $subject, string $html): bool {
     $api_key = requiredConfig('RESEND_API_KEY');
     $from = requiredConfig('RESEND_FROM_EMAIL');
@@ -44,9 +42,6 @@ function sendResendEmail(string $to, string $subject, string $html): bool {
     return true;
 
 }
-
-// html email template for resend otp
-
 function otpEmailHtml(string $fullName, string $otpCode): string {
     $name = htmlspecialchars($fullName);
     return "

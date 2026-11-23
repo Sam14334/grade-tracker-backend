@@ -2,10 +2,8 @@
 
 declare(strict_types=1);
 
-/* =========================================================================
-   1. Database Queries (Enrollments & Scores)
-   ========================================================================= */
 
+//db queries
 function enrollmentListByUser(PDO $conn, int $userId): array {
     $stmt = $conn->prepare("
         SELECT gt.template_id, gt.course_code, gt.course_title, gt.course_unit, gt.class_code,
@@ -74,10 +72,7 @@ function scoreInsertStatement(PDO $conn, string $period): PDOStatement {
         WHERE ec.enrollment_id = ? AND ec.user_id = ? AND tc.id = ?");
 }
 
-/* =========================================================================
-   2. Student Core Logic (Dashboard, Analytics, Score Saving)
-   ========================================================================= */
-
+//student core logic
 function studentDashboard(int $userId): array {
     $conn = db();
     $courses = [];
@@ -326,10 +321,7 @@ function saveTargetGrade(int $userId, int $enrollmentId, array $input): array {
     ];
 }
 
-/* =========================================================================
-   3. Route Handlers (Dispatched directly by router)
-   ========================================================================= */
-
+//route handler
 function studentDashboardController(): void {
     $user = requireStudent();
     $courses = studentDashboard($user['userId']);

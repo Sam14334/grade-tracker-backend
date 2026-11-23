@@ -2,10 +2,6 @@
 
 declare(strict_types=1);
 
-/* =========================================================================
-   1. PUP Grade Scales & Grading Periods
-   ========================================================================= */
-
 function pupGradeScale(): array {
     return [
         [97, 1.00], [94, 1.25], [91, 1.50], [88, 1.75], [85, 2.00],
@@ -36,10 +32,7 @@ function percentageToGrade(float $percentage): float {
     return 5.00;
 }
 
-/* =========================================================================
-   2. Grade Calculation Formulas
-   ========================================================================= */
-
+//grade calculation formulas
 function calculatePeriodGrade(array $components, array $scores): array {
     $totals = [];
     foreach ($scores as $score) {
@@ -157,10 +150,7 @@ function summarizeComponentPerformance(array $components, array $scores): array 
     ];
 }
 
-/* =========================================================================
-   3. Database Queries for Components & Scores
-   ========================================================================= */
-
+// db queries
 function loadTemplateComponents(PDO $conn, int $templateId): array {
     $components = [];
     foreach (componentTables() as $period => $table) {

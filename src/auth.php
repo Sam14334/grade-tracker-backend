@@ -2,10 +2,7 @@
 
 declare(strict_types=1);
 
-/* =========================================================================
-   1. Session & Role Helpers
-   ========================================================================= */
-
+// session and role helpers
 function currentUser(): ?array {
     if (!isset($_SESSION['user_id'])) return null;
 
@@ -91,10 +88,7 @@ function emailDomain(string $email): string {
     return (string)end($parts);
 }
 
-/* =========================================================================
-   2. Database Queries (Users & OTP)
-   ========================================================================= */
-
+// db queries
 function userFindByEmail(PDO $conn, string $email): ?array {
     $stmt = $conn->prepare("SELECT user_id FROM users WHERE email = ? LIMIT 1");
     $stmt->execute([$email]);
@@ -175,10 +169,7 @@ function otpDeleteByEmail(PDO $conn, string $email): void {
     $stmt->execute([$email]);
 }
 
-/* =========================================================================
-   3. Auth Route Handlers (Dispatched directly by router)
-   ========================================================================= */
-
+// auth route handlers
 function authSessionController(): void {
     $user = currentUser();
     jsonSuccess([

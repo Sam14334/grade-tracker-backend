@@ -2,10 +2,7 @@
 
 declare(strict_types=1);
 
-/* =========================================================================
-   1. Template Input Parsing & Validation
-   ========================================================================= */
-
+// template input and validation
 function normalizeTemplateComponents(mixed $components): array {
     $normalized = [];
     foreach (gradingPeriods() as $period => $label) {
@@ -87,10 +84,7 @@ function templateFormError(array $form): string {
     return '';
 }
 
-/* =========================================================================
-   2. Database Queries (Templates & Components)
-   ========================================================================= */
-
+// db queries
 function templateListByUser(PDO $conn, int $userId): array {
     $stmt = $conn->prepare("
         SELECT template_id, course_code, course_title, course_unit, class_code
@@ -186,10 +180,7 @@ function templateDeleteComponent(PDO $conn, string $table, int $componentId, int
     $stmt->execute([$componentId, $templateId]);
 }
 
-/* =========================================================================
-   3. Template Save / Transaction Logic
-   ========================================================================= */
-
+// template logic
 function templateSave(array $input, ?int $templateId, int $userId): array {
     $form = templateFormInput([
         'courseCode' => is_scalar($input['courseCode'] ?? null) ? (string)$input['courseCode'] : '',
@@ -281,10 +272,7 @@ function templateSave(array $input, ?int $templateId, int $userId): array {
     return ['templateId' => $templateId, 'classCode' => $classCode];
 }
 
-/* =========================================================================
-   4. Route Handlers (Dispatched directly by router)
-   ========================================================================= */
-
+// router handler
 function templateListController(): void {
     $user = requireProfessor();
     $conn = db();

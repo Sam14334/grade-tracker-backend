@@ -2,10 +2,6 @@
 
 declare(strict_types=1);
 
-/* =========================================================================
-   1. Professor Class Standings & Analytics
-   ========================================================================= */
-
 function professorStandings(int $professorId): array {
     $conn = db();
     $standingCourses = [];
@@ -76,10 +72,7 @@ function professorStandings(int $professorId): array {
     ];
 }
 
-/* =========================================================================
-   2. Route Handler (Dispatched directly by router)
-   ========================================================================= */
-
+// route handler
 function professorStandingsController(): void {
     $user = requireProfessor();
     session_write_close();
