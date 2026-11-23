@@ -24,21 +24,3 @@ function db(): PDO {
 
     return $conn;
 }
-
-/**
- * Ensures required rate limiting columns exist on otp_verifications table
- */
-function ensureOtpRateLimitColumns(PDO $conn): void {
-    static $columnsEnsured = false;
-    if ($columnsEnsured) return;
-    try {
-        $conn->exec("
-            ALTER TABLE otp_verifications ADD COLUMN IF NOT EXISTS resend_count INT DEFAULT 0;
-            ALTER TABLE otp_verifications ADD COLUMN IF NOT EXISTS failed_attempts INT DEFAULT 0;
-            ALTER TABLE otp_verifications ADD COLUMN IF NOT EXISTS last_resend_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
-        ");
-        $columnsEnsured = true;
-    } catch (Exception $e) {
-        error_log("OTP migration check: " . $e->getMessage());
-    }
-}
