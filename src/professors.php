@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 function professorStandings(int $professorId): array {
     $conn = db();
     $standingCourses = [];
@@ -24,16 +26,20 @@ function professorStandings(int $professorId): array {
         ];
     }
 
-    $enrollmentStmt = $conn->prepare('SELECT ec.enrollment_id, ec.template_id, u.full_name, u.email
-        FROM enrolled_courses ec JOIN grade_templates gt ON gt.template_id = ec.template_id
+    $enrollmentStmt = $conn->prepare('
+        SELECT ec.enrollment_id, ec.template_id, u.full_name, u.email
+        FROM enrolled_courses ec
+        JOIN grade_templates gt ON gt.template_id = ec.template_id
         JOIN users u ON u.user_id = ec.user_id
         WHERE gt.user_id = ? AND ec.user_id <> ? AND u.role_id <> 2
-        ORDER BY ec.template_id, u.full_name, u.email');
+        ORDER BY ec.template_id, u.full_name, u.email
+    ');
     $enrollmentStmt->execute([$professorId, $professorId]);
 
     while ($enrollment = $enrollmentStmt->fetch()) {
         $templateId = (int)$enrollment['template_id'];
         if (!isset($standingCourses[$templateId])) continue;
+
         $components = $standingCourses[$templateId]['components'];
         $scores = loadEnrollmentScores($conn, (int)$enrollment['enrollment_id'], $templateId);
         $result = calculateCourseGrade($components, $scores);
@@ -64,4 +70,11 @@ function professorStandings(int $professorId): array {
         'gradeScale' => array_column(pupGradeScale(), 1),
         'gradeScalePairs' => pupGradeScale(),
     ];
+}
+
+// route handler
+function professorStandingsController(): void {
+    $user = requireProfessor();
+    session_write_close();
+    jsonSuccess(professorStandings($user['userId']));
 }

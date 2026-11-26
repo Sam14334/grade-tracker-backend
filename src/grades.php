@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 function pupGradeScale(): array {
     return [
         [97, 1.00], [94, 1.25], [91, 1.50], [88, 1.75], [85, 2.00],
@@ -7,8 +9,22 @@ function pupGradeScale(): array {
     ];
 }
 
+function allowedTargetGrades(): array {
+    return array_values(array_filter(array_column(pupGradeScale(), 1), fn($grade) => $grade <= 3.00));
+}
+
+function gradingPeriods(): array {
+    return ['midterms' => 'Midterms', 'finals' => 'Finals'];
+}
+
+function componentTables(): array {
+    return [
+        'midterms' => 'midterms_template_components',
+        'finals' => 'finals_template_components',
+    ];
+}
+
 function percentageToGrade(float $percentage): float {
-    // Remove floating-point noise without rounding to a whole percentage.
     $percentage = round($percentage, 10);
     foreach (pupGradeScale() as [$minimum, $grade]) {
         if ($percentage >= $minimum) return $grade;
@@ -16,10 +32,7 @@ function percentageToGrade(float $percentage): float {
     return 5.00;
 }
 
-function gradingPeriods(): array {
-    return ['midterms' => 'Midterms', 'finals' => 'Finals'];
-}
-
+//grade calculation formulas
 function calculatePeriodGrade(array $components, array $scores): array {
     $totals = [];
     foreach ($scores as $score) {
@@ -34,10 +47,12 @@ function calculatePeriodGrade(array $components, array $scores): array {
     $pendingExams = false;
     $missingCoursework = false;
     $validWeights = count($components) > 0;
+
     foreach ($components as $component) {
         $weight = (int)$component['weight'];
         $weightTotal += $weight;
         if ($weight < 0 || $weight > 100) $validWeights = false;
+
         $total = $totals[(string)$component['id']] ?? ['score' => 0, 'max' => 0];
         if ($total['max'] <= 0) {
             if (filter_var($component['is_exam'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
@@ -87,14 +102,6 @@ function calculateCourseGrade(array $components, array $scores): array {
     ];
 }
 
-/**
- * Aggregates saved score records into per-component results.
- *
- * Each grading period contributes half of the course weight, so a component's
- * course weight is its template weight divided by two.
- *
- * @return array{components: list<array>, gradedWeight: float, earnedPoints: float, percentage: ?float}
- */
 function summarizeComponentPerformance(array $components, array $scores): array {
     $totals = [];
     foreach ($scores as $score) {
@@ -118,7 +125,6 @@ function summarizeComponentPerformance(array $components, array $scores): array 
         $total = $totals[(string)$component['id']] ?? ['score' => 0.0, 'max' => 0, 'assessments' => []];
         $courseWeight = (int)$component['weight'] / 2;
         if ($total['max'] > 0) {
-            // Recorded zeros count as graded work.
             $gradedWeight += $courseWeight;
             $earnedPoints += ($total['score'] / $total['max']) * $courseWeight;
         }
@@ -144,6 +150,53 @@ function summarizeComponentPerformance(array $components, array $scores): array 
     ];
 }
 
-function allowedTargetGrades(): array {
-    return array_values(array_filter(array_column(pupGradeScale(), 1), fn($grade) => $grade <= 3.00));
+// db queries
+function loadTemplateComponents(PDO $conn, int $templateId): array {
+    $components = [];
+    foreach (componentTables() as $period => $table) {
+        $stmt = $conn->prepare("SELECT id, component_name, weight, is_exam FROM {$table} WHERE template_id = ? ORDER BY id");
+        $stmt->execute([$templateId]);
+        while ($row = $stmt->fetch()) {
+            $components[] = [
+                'id' => $period . '_' . $row['id'],
+                'database_id' => (int)$row['id'],
+                'period' => $period,
+                'name' => $row['component_name'],
+                'weight' => (int)$row['weight'],
+                'is_exam' => filter_var($row['is_exam'], FILTER_VALIDATE_BOOLEAN),
+            ];
+        }
+    }
+    return $components;
+}
+
+function loadUsedTemplateComponentIds(PDO $conn, int $templateId, string $period): array {
+    $tables = componentTables();
+    $columns = ['midterms' => 'midterm_component_id', 'finals' => 'final_component_id'];
+    if (!isset($tables[$period])) throw new InvalidArgumentException('Invalid grading period.');
+    $table = $tables[$period];
+    $column = $columns[$period];
+
+    $stmt = $conn->prepare("SELECT tc.id FROM {$table} tc WHERE tc.template_id = ?
+        AND EXISTS(SELECT 1 FROM student_component_scores s WHERE s.{$column} = tc.id)");
+    $stmt->execute([$templateId]);
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+function loadEnrollmentScores(PDO $conn, int $enrollmentId, int $templateId): array {
+    $scores = [];
+    $columns = ['midterms' => 'midterm_component_id', 'finals' => 'final_component_id'];
+    foreach (componentTables() as $period => $table) {
+        $column = $columns[$period];
+        $stmt = $conn->prepare("SELECT scs.*, tc.id AS period_component_id FROM student_component_scores scs
+            JOIN {$table} tc ON tc.id = scs.{$column}
+            WHERE scs.enrollment_id = ? AND tc.template_id = ? ORDER BY scs.score_id");
+        $stmt->execute([$enrollmentId, $templateId]);
+        while ($row = $stmt->fetch()) {
+            $row['component_id'] = $period . '_' . $row['period_component_id'];
+            $row['period'] = $period;
+            $scores[] = $row;
+        }
+    }
+    return $scores;
 }

@@ -1,5 +1,78 @@
 <?php
 
+declare(strict_types=1);
+
+
+//db queries
+function enrollmentListByUser(PDO $conn, int $userId): array {
+    $stmt = $conn->prepare("
+        SELECT gt.template_id, gt.course_code, gt.course_title, gt.course_unit, gt.class_code,
+               ec.enrollment_id, ec.target_grade, gt.created_at
+        FROM grade_templates gt
+        JOIN enrolled_courses ec ON gt.template_id = ec.template_id
+        WHERE ec.user_id = ?
+        ORDER BY gt.created_at DESC
+    ");
+    $stmt->execute([$userId]);
+    return $stmt->fetchAll();
+}
+
+function enrollmentFindForUser(PDO $conn, int $enrollmentId, int $userId): ?array {
+    $stmt = $conn->prepare("
+        SELECT ec.enrollment_id, ec.target_grade, gt.template_id, gt.course_code, gt.course_title, gt.course_unit
+        FROM enrolled_courses ec
+        JOIN grade_templates gt ON gt.template_id = ec.template_id
+        WHERE ec.enrollment_id = ? AND ec.user_id = ?
+    ");
+    $stmt->execute([$enrollmentId, $userId]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+function enrollmentCreate(PDO $conn, int $userId, int $templateId): ?int {
+    $stmt = $conn->prepare("
+        INSERT INTO enrolled_courses (user_id, template_id)
+        VALUES (?, ?)
+        ON CONFLICT (user_id, template_id) DO NOTHING
+        RETURNING enrollment_id
+    ");
+    $stmt->execute([$userId, $templateId]);
+    $id = $stmt->fetchColumn();
+    return $id === false ? null : (int)$id;
+}
+
+function enrollmentDeleteForUser(PDO $conn, int $enrollmentId, int $userId): bool {
+    $stmt = $conn->prepare("DELETE FROM enrolled_courses WHERE enrollment_id = ? AND user_id = ?");
+    $stmt->execute([$enrollmentId, $userId]);
+    return $stmt->rowCount() === 1;
+}
+
+function enrollmentUpdateTarget(PDO $conn, int $enrollmentId, int $userId, float $target): bool {
+    $stmt = $conn->prepare("UPDATE enrolled_courses SET target_grade = ? WHERE enrollment_id = ? AND user_id = ?");
+    $stmt->execute([$target, $enrollmentId, $userId]);
+    return $stmt->rowCount() === 1;
+}
+
+function scoreDeleteForEnrollment(PDO $conn, int $enrollmentId, int $userId): void {
+    $stmt = $conn->prepare("DELETE FROM student_component_scores WHERE enrollment_id = ?
+        AND enrollment_id IN (SELECT enrollment_id FROM enrolled_courses WHERE user_id = ?)");
+    $stmt->execute([$enrollmentId, $userId]);
+}
+
+function scoreInsertStatement(PDO $conn, string $period): PDOStatement {
+    $columns = ['midterms' => 'midterm_component_id', 'finals' => 'final_component_id'];
+    $tables = componentTables();
+    $column = $columns[$period];
+    $table = $tables[$period];
+
+    return $conn->prepare("INSERT INTO student_component_scores
+        (enrollment_id, {$column}, assessment_title, raw_score, total_items)
+        SELECT ec.enrollment_id, tc.id, ?, ?, ? FROM enrolled_courses ec
+        JOIN {$table} tc ON tc.template_id = ec.template_id
+        WHERE ec.enrollment_id = ? AND ec.user_id = ? AND tc.id = ?");
+}
+
+//student core logic
 function studentDashboard(int $userId): array {
     $conn = db();
     $courses = [];
@@ -246,4 +319,51 @@ function saveTargetGrade(int $userId, int $enrollmentId, array $input): array {
         'analytics' => studentDashboardAnalytics($courses),
         'redirect' => 'student_dashboard.html?target=saved#grades',
     ];
+}
+
+//route handler
+function studentDashboardController(): void {
+    $user = requireStudent();
+    $courses = studentDashboard($user['userId']);
+    jsonSuccess([
+        'user' => $user,
+        'courses' => $courses,
+        'analytics' => studentDashboardAnalytics($courses),
+        'gradeScale' => array_column(pupGradeScale(), 1),
+        'gradeScalePairs' => pupGradeScale(),
+        'targetGrades' => allowedTargetGrades(),
+        'csrfToken' => csrfToken(),
+    ]);
+}
+
+function studentCourseController(array $params): void {
+    $user = requireStudent();
+    jsonSuccess(courseDetail($user['userId'], (int)$params['id']));
+}
+
+function studentSaveScoresController(array $params): void {
+    $user = requireStudent();
+    $data = requestData();
+    requireCsrf($data);
+    jsonSuccess(saveCourseScores($user['userId'], (int)$params['id'], $data));
+}
+
+function enrollmentCreateController(): void {
+    $user = requireStudent();
+    $data = requestData();
+    requireCsrf($data);
+    jsonSuccess(enrollCourse($user['userId'], $data));
+}
+
+function enrollmentDeleteController(array $params): void {
+    $user = requireStudent();
+    requireCsrf(requestData());
+    jsonSuccess(unenrollCourse($user['userId'], (int)$params['id']));
+}
+
+function targetGradeController(array $params): void {
+    $user = requireStudent();
+    $data = requestData();
+    requireCsrf($data);
+    jsonSuccess(saveTargetGrade($user['userId'], (int)$params['id'], $data));
 }
